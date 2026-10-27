@@ -145,15 +145,30 @@ function Listing({ view, list, onCompanySelect, onCollectionSelect }) {
 }
 
 function CompanyDetail({ companyId, onBack, collections, onChanged }) {
-  const [company, setCompany] = useState(null); const [failed, setFailed] = useState(false);
+  const [company, setCompany] = useState(null); const [failed, setFailed] = useState(false); const [editing, setEditing] = useState(false);
   const load = () => request(`/companies/${companyId}`).then(setCompany).catch(() => setFailed(true));
   useEffect(() => { load(); }, [companyId]);
   if (failed) return <><button className="back" onClick={onBack}>← Volver a empresas</button><Empty text="No se encontró la empresa solicitada." /></>;
   if (!company) return <p className="empty">Cargando ficha de empresa…</p>;
-  return <><button className="back" onClick={onBack}>← Volver a empresas</button>
-    <section className="company-hero"><div className="hero-company"><CompanyLogo company={company} large /><div><span className="tag">{company.sector}</span><h2>{company.name}</h2><p>{company.description || 'Esta empresa todavía no tiene una descripción.'}</p></div></div><dl><div><dt>País</dt><dd>{company.country}</dd></div><div><dt>Fundación</dt><dd>{company.founded_year || 'Sin dato'}</dd></div><div><dt>Empleados</dt><dd>{formatNumber(company.employee_count)} · {companySize(company.employee_count)}</dd></div><div><dt>Ventas anuales</dt><dd>{formatSales(company.annual_sales_usd, company.sales_unit)}{company.sales_scope && ` · ${company.sales_scope}`}{company.sales_year && ` (${company.sales_year})`}</dd></div><div><dt>Modelo</dt><dd>{company.business_model || 'Sin definir'}</dd></div></dl></section>
+  return <>{editing && <CompanyEditor company={company} onClose={() => setEditing(false)} onSaved={async () => { await load(); onChanged(); }} />}<button className="back" onClick={onBack}>← Volver a empresas</button>
+    <section className="company-hero"><div className="hero-company"><CompanyLogo company={company} large /><div><span className="tag">{company.sector}</span><h2>{company.name}</h2><p>{company.description || 'Esta empresa todavía no tiene una descripción.'}</p><button className="secondary company-edit" onClick={() => setEditing(true)}>Editar empresa</button></div></div><dl><div><dt>País</dt><dd>{company.country}</dd></div><div><dt>Fundación</dt><dd>{company.founded_year || 'Sin dato'}</dd></div><div><dt>Empleados</dt><dd>{formatNumber(company.employee_count)} · {companySize(company.employee_count)}</dd></div><div><dt>Ventas anuales</dt><dd>{formatSales(company.annual_sales_usd, company.sales_unit)}{company.sales_scope && ` · ${company.sales_scope}`}{company.sales_year && ` (${company.sales_year})`}</dd></div><div><dt>Modelo</dt><dd>{company.business_model || 'Sin definir'}</dd></div></dl></section>
     <div className="detail-grid"><article className="panel"><h3>Propuesta de valor</h3><p className="detail-text">{company.value_proposition || 'Pendiente de documentar.'}</p><CompanyMetrics company={company} onSaved={() => { load(); onChanged(); }} /><CollectionAssignment companyId={companyId} collections={collections} onChanged={onChanged} /></article><article className="panel"><h3>Mercados y cuota</h3>{company.marketShares.length ? company.marketShares.map(share => <div className="share-row" key={share.market_id}><div><b>{share.market_name}</b><small>{share.geography} · {share.period_label} · confianza {share.confidence}</small></div><strong>{share.share_percentage}%</strong><p>{share.estimated_revenue ? `${formatMoney(share.estimated_revenue, share.currency)} · ` : ''}{share.source_name || 'Sin fuente registrada'}</p></div>) : <Empty text="No participa en mercados registrados todavía." />}</article></div>
   </>;
+}
+
+function CompanyEditor({ company, onClose, onSaved }) {
+  const [error, setError] = useState(''); const salesUnit = company.sales_unit || 'Millones de USD';
+  const save = async event => {
+    event.preventDefault(); const values = Object.fromEntries(new FormData(event.target));
+    values.annual_sales_usd = values.annual_sales_amount ? Number(values.annual_sales_amount) * salesUnitFactor[values.sales_unit] : '';
+    delete values.annual_sales_amount;
+    try { await request(`/companies/${company.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) }); await onSaved(); onClose(); }
+    catch { setError('No se pudo guardar la empresa.'); }
+  };
+  return <Modal title="Editar empresa" onClose={onClose}><form onSubmit={save}>
+    <Field label="Nombre" name="name" defaultValue={company.name} /><Field label="URL del logo" name="logo_url" type="url" defaultValue={company.logo_url || ''} required={false} /><Field label="Sector" name="sector" defaultValue={company.sector} /><Field label="País" name="country" defaultValue={company.country} /><Field label="Año de fundación" name="founded_year" type="number" defaultValue={company.founded_year || ''} required={false} /><Field label="Número de empleados" name="employee_count" type="number" min="1" defaultValue={company.employee_count || ''} required={false} /><Field label="Ventas anuales" name="annual_sales_amount" type="number" min="0" step="0.01" defaultValue={company.annual_sales_usd ? Number(company.annual_sales_usd) / salesUnitFactor[salesUnit] : ''} required={false} /><label>Unidad<select name="sales_unit" defaultValue={salesUnit}><option>USD</option><option>Miles de USD</option><option>Millones de USD</option></select></label><Field label="Año de ventas" name="sales_year" type="number" min="1900" defaultValue={company.sales_year || ''} required={false} /><label>Cobertura de ventas<select name="sales_scope" defaultValue={company.sales_scope || ''}><option value="">Sin especificar</option><option>Chile</option><option>Regional</option><option>Global</option><option>Estimado</option></select></label><Field label="Modelo de negocio" name="business_model" defaultValue={company.business_model || ''} required={false} /><label>Descripción<textarea name="description" defaultValue={company.description || ''} /></label><label>Propuesta de valor<textarea name="value_proposition" defaultValue={company.value_proposition || ''} /></label>
+    {error && <p className="form-error">{error}</p>}<button className="primary" type="submit">Guardar cambios</button>
+  </form></Modal>;
 }
 
 function CompanyMetrics({ company, onSaved }) {
