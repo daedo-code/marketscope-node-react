@@ -4,9 +4,13 @@ import './styles.css';
 
 const API = 'http://localhost:3001/api';
 const request = (path, options) => fetch(`${API}${path}`, options).then(async response => {
-  if (!response.ok) throw new Error('Error de conexión');
-  if (response.status === 204) return null;
-  return response.json();
+  const payload = response.status === 204 ? null : await response.json();
+  if (!response.ok) {
+    const error = new Error(payload?.error || 'Error de conexión');
+    error.status = response.status;
+    throw error;
+  }
+  return payload;
 });
 const formatMoney = (value, currency = 'USD') => value ? new Intl.NumberFormat('es-ES', { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1 }).format(value) : 'Sin dato';
 const salesUnitFactor = { USD: 1, 'Miles de USD': 1000, 'Millones de USD': 1000000 };
@@ -48,11 +52,20 @@ function App() {
   const submit = async (event, type) => {
     event.preventDefault(); const values = Object.fromEntries(new FormData(event.target));
     if (type === 'companies') {
+      values.name = values.name.trim();
+      const duplicate = data.companies.some(company => company.name.trim().localeCompare(values.name, 'es', { sensitivity: 'base' }) === 0);
+      if (duplicate) {
+        window.alert(`La empresa "${values.name}" ya existe y no fue agregada.`);
+        return;
+      }
       values.annual_sales_usd = values.annual_sales_amount ? Number(values.annual_sales_amount) * salesUnitFactor[values.sales_unit] : '';
       delete values.annual_sales_amount;
     }
     try { await request(`/${type}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) }); setModal(null); load(); }
-    catch { setError('No se pudo guardar el registro.'); }
+    catch (error) {
+      if (error.status === 409) window.alert(error.message);
+      else setError(error.message || 'No se pudo guardar el registro.');
+    }
   };
   const selectView = (nextView) => { history.pushState('', '', `${location.pathname}${location.search}`); setCompanyId(null); setCollectionId(null); setView(nextView); };
   const isDetail = view === 'Detalle de empresa' || view === 'Detalle de colección';
@@ -163,7 +176,7 @@ function CompanyEditor({ company, onClose, onSaved }) {
     values.annual_sales_usd = values.annual_sales_amount ? Number(values.annual_sales_amount) * salesUnitFactor[values.sales_unit] : '';
     delete values.annual_sales_amount;
     try { await request(`/companies/${company.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) }); await onSaved(); onClose(); }
-    catch { setError('No se pudo guardar la empresa.'); }
+    catch (error) { setError(error.message || 'No se pudo guardar la empresa.'); }
   };
   return <Modal title="Editar empresa" onClose={onClose}><form onSubmit={save}>
     <Field label="Nombre" name="name" defaultValue={company.name} /><Field label="URL del logo" name="logo_url" type="url" defaultValue={company.logo_url || ''} required={false} /><Field label="Sector" name="sector" defaultValue={company.sector} /><Field label="País" name="country" defaultValue={company.country} /><Field label="Año de fundación" name="founded_year" type="number" defaultValue={company.founded_year || ''} required={false} /><Field label="Número de empleados" name="employee_count" type="number" min="1" defaultValue={company.employee_count || ''} required={false} /><Field label="Ventas anuales" name="annual_sales_amount" type="number" min="0" step="0.01" defaultValue={company.annual_sales_usd ? Number(company.annual_sales_usd) / salesUnitFactor[salesUnit] : ''} required={false} /><label>Unidad<select name="sales_unit" defaultValue={salesUnit}><option>USD</option><option>Miles de USD</option><option>Millones de USD</option></select></label><Field label="Año de ventas" name="sales_year" type="number" min="1900" defaultValue={company.sales_year || ''} required={false} /><label>Cobertura de ventas<select name="sales_scope" defaultValue={company.sales_scope || ''}><option value="">Sin especificar</option><option>Chile</option><option>Regional</option><option>Global</option><option>Estimado</option></select></label><Field label="Modelo de negocio" name="business_model" defaultValue={company.business_model || ''} required={false} /><label>Descripción<textarea name="description" defaultValue={company.description || ''} /></label><label>Propuesta de valor<textarea name="value_proposition" defaultValue={company.value_proposition || ''} /></label>

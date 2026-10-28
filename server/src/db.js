@@ -36,6 +36,24 @@ const ensureCompanyMetricsColumns = async () => {
   }
 };
 
+const ensureCompanyNameUniqueIndex = async () => {
+  const [[duplicate]] = await pool.query(`
+    SELECT TRIM(name) AS name
+    FROM companies
+    GROUP BY TRIM(name)
+    HAVING COUNT(*) > 1
+    LIMIT 1
+  `);
+
+  if (duplicate) {
+    console.warn(`No se creó el índice único de empresas: ya existen duplicados como "${duplicate.name}".`);
+    return;
+  }
+
+  const [indexes] = await pool.query("SHOW INDEX FROM companies WHERE Key_name = 'unique_companies_name'");
+  if (!indexes.length) await pool.query('ALTER TABLE companies ADD UNIQUE INDEX unique_companies_name (name)');
+};
+
 const ensureCollectionsTables = () => Promise.all([
   pool.query(`CREATE TABLE IF NOT EXISTS collections (
     id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(160) NOT NULL, description TEXT NULL,
@@ -52,5 +70,6 @@ const ensureCollectionsTables = () => Promise.all([
 export const prepareDatabase = () => Promise.all([
   ensureCompanyLogoColumn(),
   ensureCompanyMetricsColumns(),
+  ensureCompanyNameUniqueIndex(),
   ensureCollectionsTables()
 ]);

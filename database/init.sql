@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS companies (
   description TEXT NULL,
   business_model VARCHAR(100) NULL,
   value_proposition TEXT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_companies_name (name)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS markets (
