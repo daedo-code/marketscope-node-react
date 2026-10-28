@@ -20,5 +20,33 @@ services:
       timeout: 5s
       retries: 20
 
+  api:
+    build:
+      context: ./server
+    container_name: intelligence-api
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: market_intelligence
+      DB_USER: market_user
+      DB_PASSWORD: market_password
+    ports:
+      - "3001:3001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  client:
+    build:
+      context: ./client
+    container_name: intelligence-client
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
 volumes:
   mysql_data:
