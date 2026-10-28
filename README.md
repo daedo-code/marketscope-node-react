@@ -21,23 +21,16 @@ npm run dev
 
 ## Docker
 
-El servicio de MySQL no usa perfiles, por lo que puedes levantar solo la base de datos para una ejecución de producción sin contenedores para la aplicación:
+Para levantar toda la aplicación localmente (MySQL, API y cliente):
 
 ```bash
-npm run docker:db
+docker compose up
 ```
 
-Para desarrollo local, levanta también la API y el cliente con el perfil `app`:
-
-```bash
-npm run docker:local
-```
-
-También puedes usar los comandos de Docker directamente:
+Para levantar únicamente MySQL, por ejemplo si la API y el cliente se ejecutan fuera de Docker:
 
 ```bash
 docker compose up -d mysql
-docker compose --profile app up --build
 ```
 
 La aplicación local estará disponible en http://localhost:5173 y la API en http://localhost:3001.

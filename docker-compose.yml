@@ -21,7 +21,6 @@ services:
       retries: 20
 
   api:
-    profiles: ["app"]
     build:
       context: ./server
     container_name: intelligence-api
@@ -40,7 +39,6 @@ services:
         condition: service_healthy
 
   client:
-    profiles: ["app"]
     build:
       context: ./client
     container_name: intelligence-client
